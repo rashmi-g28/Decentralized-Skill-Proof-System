@@ -5,6 +5,7 @@ from app.core.config import settings
 from app.core.logging_config import configure_logging
 from app.db.init_db import init_db
 from app.api.v1.routes import health
+from app.api.v1.routes import submissions, results
 
 
 # Configure logging early so startup logs are formatted
@@ -35,6 +36,8 @@ def on_startup() -> None:
 
 # Mount versioned API routers
 app.include_router(health.router, prefix="/api/v1", tags=["health"]) 
+app.include_router(submissions.router, prefix="/api/v1", tags=["submissions"]) 
+app.include_router(results.router, prefix="/api/v1", tags=["results"]) 
 
 
 @app.get("/")
