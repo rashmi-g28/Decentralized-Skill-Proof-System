@@ -1,5 +1,6 @@
 from typing import Optional, List
 from pathlib import Path
+import os
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException
 from sqlalchemy.orm import Session
@@ -9,6 +10,7 @@ from app.models import User, Submission, Result
 from app.schemas.submission import SubmissionCreate, EvaluationResponse, EvaluationDetail
 from app.services.evaluator.runner import CodeEvaluator
 from app.services.certificates.generator import CertificateGenerator
+from app.services.blockchain.client import DSPSBlockchainClient
 from app.utils.file_storage import save_uploadfile, ensure_dir
 
 router = APIRouter()
@@ -82,18 +84,31 @@ async def submit_code(
 	db.commit()
 	db.refresh(res)
 
-	certificate_path: Optional[str] = None
-	if res.passed:
-		# Generate certificate now (blockchain hash may be added later)
-		cg = CertificateGenerator(CERTS_DIR)
-		cert = cg.generate_certificate(
-			user_name=user.name,
-			skill=skill,
-			score=result.score,
-			blockchain_tx_hash=res.blockchain_tx_hash,
-			filename_prefix=f"result_{res.id}",
-		)
-		certificate_path = str(cert)
+	# Optional on-chain push
+	auto_push = os.getenv("DSPS_AUTO_PUSH", "false").lower() == "true"
+	if res.passed and auto_push and wallet_address and os.getenv("WEB3_PROVIDER_URL") and os.getenv("CONTRACT_ADDRESS") and os.getenv("CONTRACT_PRIVATE_KEY"):
+		try:
+			client = DSPSBlockchainClient.from_env()
+			# Use submission created_at as timestamp from DB (seconds)
+			# For simplicity in MVP, use current epoch if not available
+			from time import time
+			tx_hash = client.add_record(user_address=wallet_address, skill=skill, score=result.score, timestamp=int(time()))
+			res.blockchain_tx_hash = tx_hash
+			db.add(res)
+			db.commit()
+		except Exception as chain_err:
+			# Log and continue without failing the request
+			print(f"On-chain push failed: {chain_err}")
+
+	# Generate certificate (hash may be None if not on-chain yet)
+	cg = CertificateGenerator(CERTS_DIR)
+	cert = cg.generate_certificate(
+		user_name=user.name,
+		skill=skill,
+		score=result.score,
+		blockchain_tx_hash=res.blockchain_tx_hash,
+		filename_prefix=f"result_{res.id}",
+	)
 
 	# Prepare response
 	details_models: List[EvaluationDetail] = [EvaluationDetail(**d) for d in result.details]

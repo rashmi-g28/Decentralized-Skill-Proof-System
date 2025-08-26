@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import List, Optional
+import os
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
@@ -7,6 +8,8 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models import Result, User, Submission
+from app.services.certificates.generator import CertificateGenerator
+from app.services.blockchain.client import DSPSBlockchainClient
 
 router = APIRouter()
 
@@ -44,6 +47,39 @@ def get_results_by_wallet(wallet_address: str, db: Session = Depends(get_db)) ->
 		}
 		for r in rows
 	]
+
+
+@router.post("/results/{result_id}/push")
+def push_result_on_chain(result_id: int, db: Session = Depends(get_db)) -> dict:
+	res = db.query(Result).filter(Result.id == result_id).first()
+	if not res:
+		raise HTTPException(status_code=404, detail="Result not found")
+	if not res.passed:
+		raise HTTPException(status_code=400, detail="Only passing results can be pushed on-chain")
+	user = db.query(User).filter(User.id == res.user_id).first()
+	if not user or not user.wallet_address:
+		raise HTTPException(status_code=400, detail="User wallet address is required to push on-chain")
+
+	try:
+		client = DSPSBlockchainClient.from_env()
+	except Exception as e:
+		raise HTTPException(status_code=500, detail=f"Blockchain client not configured: {e}")
+
+	from time import time
+	try:
+		tx_hash = client.add_record(user_address=user.wallet_address, skill=res.skill, score=res.score, timestamp=int(time()))
+		res.blockchain_tx_hash = tx_hash
+		db.add(res)
+		db.commit()
+	except Exception as e:
+		raise HTTPException(status_code=500, detail=f"Failed to push on-chain: {e}")
+
+	# Regenerate certificate with hash
+	cert_dir = "/workspace/dsps/backend/app/static/certificates"
+	cg = CertificateGenerator(cert_dir)
+	cert = cg.generate_certificate(user_name=user.name, skill=res.skill, score=res.score, blockchain_tx_hash=res.blockchain_tx_hash, filename_prefix=f"result_{res.id}")
+
+	return {"result_id": res.id, "tx_hash": res.blockchain_tx_hash, "certificate": str(cert)}
 
 
 @router.get("/certificates/{result_id}")
