@@ -92,3 +92,17 @@ def download_certificate(result_id: int, db: Session = Depends(get_db)):
 		raise HTTPException(status_code=404, detail="Certificate not found")
 	path = candidates[0]
 	return FileResponse(path, media_type="application/pdf", filename=path.name)
+
+
+@router.get("/verify/{wallet_address}")
+def verify_on_chain(wallet_address: str) -> dict:
+	from app.services.blockchain.client import DSPSBlockchainClient
+	import os
+	if not (os.getenv("WEB3_PROVIDER_URL") and os.getenv("CONTRACT_ADDRESS") and os.getenv("CONTRACT_PRIVATE_KEY")):
+		raise HTTPException(status_code=500, detail="Blockchain client not configured on server")
+	try:
+		client = DSPSBlockchainClient.from_env()
+		records = client.get_records(wallet_address)
+		return {"wallet_address": wallet_address, "records": records}
+	except Exception as e:
+		raise HTTPException(status_code=500, detail=f"Failed to fetch on-chain records: {e}")
