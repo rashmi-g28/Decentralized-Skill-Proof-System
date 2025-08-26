@@ -1,0 +1,10 @@
+{
+	"name": "palindrome",
+	"description": "Return True if input string is a palindrome: solve(s) -> bool",
+	"cases": [
+		{ "name": "empty", "input": "", "expected": true },
+		{ "name": "single", "input": "a", "expected": true },
+		{ "name": "racecar", "input": "racecar", "expected": true },
+		{ "name": "hello", "input": "hello", "expected": false }
+	]
+}
