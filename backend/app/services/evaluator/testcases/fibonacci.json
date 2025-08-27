@@ -1,0 +1,10 @@
+{
+	"name": "fibonacci",
+	"description": "Return the n-th fibonacci number (0-indexed): solve(n) -> int",
+	"cases": [
+		{ "name": "fib_0", "input": 0, "expected": 0 },
+		{ "name": "fib_1", "input": 1, "expected": 1 },
+		{ "name": "fib_5", "input": 5, "expected": 5 },
+		{ "name": "fib_8", "input": 8, "expected": 21 }
+	]
+}

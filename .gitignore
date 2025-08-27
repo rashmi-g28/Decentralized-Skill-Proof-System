@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+
+# Node
+node_modules/
+dist/
+
+# Editor
+.vscode/
+.idea/
+
+# Backend artifacts
+backend/dsps.db
+backend/app/static/submissions/
+backend/app/static/certificates/
+
+# Hardhat
+smart-contract/cache/
+smart-contract/artifacts/
